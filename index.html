@@ -172,6 +172,7 @@ async function importPptx(file, mode='questions'){
     pictureBlocks.push(`<img class="pptPicture" src="data:image/${mime};base64,${data}">`);
   }
   if(mode==='questions' && (text.length<2 || !text.slice(1).some(t=>t.trim().length)))throw Error('Slide '+slideNumber+' ('+code+') has no readable question text. Re-save the PowerPoint with editable text.');
+  if(mode==='answers' && !text.slice(1).some(t=>t.trim()) && pictureBlocks.length===0) { out.push({code,points,group,image:null,missing:true});continue; }
   const bodyLength=text.slice(1).join(' ').length;
   const fontSize=bodyLength>650?25:bodyLength>380?29:bodyLength>180?34:42;
   const html=`<div class="pptStage"><div class="pptContent">${textBlocks.join('')}<div class="pptPictures">${pictureBlocks.join('')}</div></div></div>`;
@@ -305,11 +306,12 @@ el('answerPptxInput').addEventListener('change',async ev=>{
   const slides=await importPptx(file,'answers');
   const codes=slides.map(x=>x.code);
   if(new Set(codes).size!==codes.length)throw Error('Duplicate answer question numbers found. Each answer slide must have a unique question number.');
-  const next=Object.fromEntries(slides.map(x=>[x.code,x.image]));
+  const missing=slides.filter(x=>x.missing).map(x=>x.code);
+  const next=Object.fromEntries(slides.filter(x=>!x.missing).map(x=>[x.code,x.image]));
   // Replace answers as a set to avoid outdated keys surviving an upload.
   ANSWER_IMAGES=next;
   let saved=true; try{await saveAnswerBank(next)}catch(e){saved=false}
-  el('status').textContent=`Loaded ${slides.length} answer keys from ${file.name}. Matched by question number.`+(saved?'':' Browser storage unavailable; re-upload next session.');
+  el('status').textContent=`Imported ${Object.keys(next).length} answer keys from ${file.name}.`+(missing.length?' WARNING: No answer content found for '+missing.join(', ')+'. Please check those slides.':'')+(saved?'':' Browser storage unavailable; re-upload next session.');
  }catch(e){el('status').textContent='Answer key import failed: '+e.message}
  finally{ev.target.value=''}
 });
