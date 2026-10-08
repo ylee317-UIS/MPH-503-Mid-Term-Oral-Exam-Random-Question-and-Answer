@@ -24,7 +24,7 @@
 </head>
 <body>
 <div class="wrap"><div class="top"><div><div class="brand">MPH 503 · Mid-term oral examination</div><h1>Oral Exam Question Randomizer</h1></div></div>
-<div class="actions"><button id="draw" class="primary">Draw 3 Questions</button><button id="present" disabled>Present to Student</button><button id="uploadBtn">Upload Questions (.pptx)</button><button id="uploadAnswerBtn">Upload Answer Keys (.pptx)</button><input id="answerPptxInput" type="file" accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation" hidden><input id="pptxInput" type="file" accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation" hidden><button id="reset">Reset Draw History</button><span class="hint">Questions rotate without repeats within each category until all have been used.</span></div>
+<div class="actions"><button id="draw" class="primary">Draw New Random Questions</button><button id="present" disabled>Present to Student</button><button id="uploadBtn">Upload Questions (.pptx)</button><button id="uploadAnswerBtn">Upload Answer Keys (.pptx)</button><input id="answerPptxInput" type="file" accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation" hidden><input id="pptxInput" type="file" accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation" hidden><button id="reset">Reset Draw History</button><span class="hint">Questions are randomly selected from the question bank.</span></div>
 <p class="status" id="status" aria-live="polite">Ready to draw questions.</p>
 <div id="empty" class="empty"><b>Ready for the next student</b>Click “Draw 3 Questions” to randomly select the three exam questions.</div>
 <div id="cards" class="grid" hidden></div>
@@ -138,7 +138,7 @@ function draw(){try{selected=GROUPS.map(g=>drawFrom(g.key))}catch(e){el('status'
  head.querySelector('.type').textContent=GROUPS[i].label;head.querySelector('.qid').textContent='Question '+q.code;head.querySelector('.points').textContent=q.points+' points';
  const img=document.createElement('img');img.className='preview';img.src=q.image;img.alt='Question '+q.code+' PowerPoint slide';img.addEventListener('click',()=>openPresent(i));
  const foot=document.createElement('div');foot.className='tileFoot';const ans=document.createElement('button');ans.className='answerBtn';ans.textContent='Answer Key';ans.addEventListener('click',()=>openAnswer(q.code));const btn=document.createElement('button');btn.textContent='Show larger ↗';btn.addEventListener('click',()=>openPresent(i));foot.append(ans,btn);card.append(head,img,foot);el('cards').append(card);
- });el('present').disabled=false;el('draw').textContent='Draw for Next Student';el('status').textContent='Selected: '+selected.map(q=>q.code).join(' · ')+'  |  Total possible: 10 points';}
+ });el('present').disabled=false;el('draw').textContent='Draw New Random Questions';el('status').textContent='Selected: '+selected.map(q=>q.code).join(' · ')+'  |  Total possible: 10 points';}
 function openAnswer(code){
  el('answerTitle').textContent='Question '+code;
  const image=ANSWER_IMAGES[code];const body=el('answerBody');body.replaceChildren();
