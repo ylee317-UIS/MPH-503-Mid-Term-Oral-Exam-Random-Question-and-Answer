@@ -20,11 +20,25 @@
 .answerBtn{background:#ecf4ff;color:#19477c;border:1px solid #b6d1ed;font-weight:700}
 .tileFoot{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
 @media(max-width:650px){.answerOverlay{padding:10px}.answerHeader h2{font-size:20px}.answerBody{padding:8px}}
+
+/* Basic presentation lock (client-side only) */
+body.randomizer-locked{overflow:hidden}
+#passwordGate[hidden]{display:none!important}
+#passwordGate{position:fixed;inset:0;z-index:99999;background:#f2f5fa;display:flex;align-items:center;justify-content:center;padding:20px}
+#passwordCard{width:min(430px,100%);background:white;border:1px solid #d9e3ef;border-radius:18px;padding:32px;box-shadow:0 16px 60px #18396326}
+#passwordCard h2{margin:0 0 8px;font-size:27px;color:#122b52}
+#passwordCard p{color:#65758c;line-height:1.5}
+#passwordCard label{display:block;margin:20px 0 7px;color:#122b52;font-weight:600}
+#passwordInput{width:100%;border:1px solid #b9cbe0;border-radius:9px;padding:13px;font:inherit;font-size:18px}
+#passwordCard button{width:100%;margin-top:16px}
+#passwordError{min-height:22px;color:#b02b33!important;font-size:13px}
 </style>
 </head>
-<body>
+<body class="randomizer-locked">
+<div id="passwordGate"><form id="passwordCard" autocomplete="off"><h2>Oral Exam Question Randomizer</h2><p>Enter the password to access the question randomizer.</p><label for="passwordInput">Password</label><input type="password" id="passwordInput" required autocomplete="off" autofocus><button class="primary" type="submit">Unlock</button><p id="passwordError" role="alert" aria-live="polite"></p></form></div>
+
 <div class="wrap"><div class="top"><div><div class="brand">MPH 503 · Mid-term oral examination</div><h1>Oral Exam Question Randomizer</h1></div></div>
-<div class="actions"><button id="draw" class="primary">Draw New Random Questions</button><button id="present" disabled>Present to Student</button><button id="uploadBtn">Upload Questions (.pptx)</button><button id="uploadAnswerBtn">Upload Answer Keys (.pptx)</button><input id="answerPptxInput" type="file" accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation" hidden><input id="pptxInput" type="file" accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation" hidden><button id="reset">Reset Draw History</button><span class="hint">Questions are randomly selected from the question bank.</span></div>
+<div class="actions"><button id="draw" class="primary">Draw New Random Questions</button><button id="present" disabled>Present to Student</button><button id="uploadBtn">Upload Questions (.pptx)</button><button id="uploadAnswerBtn">Upload Answer Keys (.pptx)</button><input id="answerPptxInput" type="file" accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation" hidden><input id="pptxInput" type="file" accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation" hidden><button id="reset">Reset Draw History</button><button id="lockRandomizer" type="button">Lock</button><span class="hint">Questions are randomly selected from the question bank.</span></div>
 <p class="status" id="status" aria-live="polite">Ready to draw questions.</p>
 <div id="empty" class="empty"><b>Ready for the next student</b>Click “Draw 3 Questions” to randomly select the three exam questions.</div>
 <div id="cards" class="grid" hidden></div>
@@ -176,5 +190,32 @@ el('pptxInput').addEventListener('change',async ev=>{const f=ev.target.files?.[0
 el('prev').addEventListener('click',()=>{if(current>0){current--;showSlide()}});el('next').addEventListener('click',()=>{if(current<2){current++;showSlide()}});
 el('reset').addEventListener('click',()=>{if(!confirm('Reset the draw history? The currently displayed questions will remain visible.'))return;history={three:[],threehalf:[],R:[]};el('status').textContent='Draw history reset. All questions are eligible again.'});
 window.addEventListener('keydown',ev=>{if(!el('answerOverlay').hidden){if(ev.key==='Escape')closeAnswer();return;}if(el('overlay').hidden)return;if(ev.key==='Escape'){closePresent();return}if(ev.key==='ArrowRight'&&current<2){current++;showSlide()}if(ev.key==='ArrowLeft'&&current>0){current--;showSlide()}});
+</script>
+<script>
+(function(){
+  'use strict';
+  const gate=document.getElementById('passwordGate');
+  const form=document.getElementById('passwordCard');
+  const input=document.getElementById('passwordInput');
+  const error=document.getElementById('passwordError');
+  function lock(){
+    gate.hidden=false;
+    document.body.classList.add('randomizer-locked');
+    input.value=''; error.textContent=''; input.focus();
+  }
+  form.addEventListener('submit',function(e){
+    e.preventDefault();
+    if(input.value==='001122'){
+      gate.hidden=true;
+      document.body.classList.remove('randomizer-locked');
+      input.value=''; error.textContent='';
+    }else{
+      error.textContent='Incorrect password. Please try again.';
+      input.select();
+    }
+  });
+  document.getElementById('lockRandomizer').addEventListener('click',lock);
+  lock();
+})();
 </script>
 </body></html>
