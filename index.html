@@ -23,7 +23,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid 
 <p id="status" role="status" aria-live="polite" class="status">Ready to draw. Upload a PDF to replace the question bank or answer keys.</p>
 <section id="cards" class="grid" hidden></section><div class="empty" id="empty">Click <strong>Draw New Random Questions</strong> to display three questions.</div>
 <details class="bank" id="bankBox"><summary id="bankSummary">Active random-draw bank</summary><p id="bankList"></p></details>
-<section class="finalPanel" id="finalSetup" hidden><h3>Final exam — question groups</h3><p>For the final exam, each draw includes <b>one Earlier Concepts question</b> and <b>two Later Concepts questions</b> (R questions may be included). Click a question below to change its group. New 3-point questions default to Earlier; all others default to Later. Check the groups after every upload.</p><div id="finalTagList" class="finalTagList"></div><p id="finalTagCount" class="finalTagCount"></p></section>
+<section class="finalPanel" id="finalSetup" hidden><h3>Final exam — question groups</h3><p>Each draw includes <b>one question from Group 1 (1–15)</b>, <b>one from Group 3 (31–315)</b>, and <b>one from Group 5 (51–515)</b>. The groups are determined automatically by the question number.</p><div id="finalTagList" class="finalTagList"></div><p id="finalTagCount" class="finalTagCount"></p></section>
 </main>
 <div id="presentation" class="overlay" hidden><div class="presentShell"><div class="presentHeader"><h2 id="presLabel"></h2><button id="closePresentation">Close ✕</button></div><img class="presentPicture" id="presImage" alt="Question slide"><div class="presentNav"><button id="prev">← Previous</button><span id="counter"></span><button id="next">Next →</button></div></div></div>
 <div id="answerOverlay" class="overlay" hidden><div class="answerPanel"><header><h2 id="answerTitle">Answer Key</h2><button id="closeAnswer">Close ✕</button></header><div id="answerBody"></div></div></div>
@@ -38,17 +38,25 @@ let FINAL_TAGS={};
 let selected=[],drawHistory=emptyHistory(),activeIndex=0,isImporting=false;
 const EXAM_CACHE={midterm:null,final:null};
 const el=id=>document.getElementById(id);
-const groupNames={three:'Statistics · 3 points',threehalf:'Statistics · 3.5 points',R:'R Question · 3.5 points',early:'Earlier Concepts',later:'Later Concepts (including R)'};
+const groupNames={three:'Statistics · 3 points',threehalf:'Statistics · 3.5 points',R:'R Question · 3.5 points',early:'Group 1 · Questions 1–15',group3:'Group 3 · Questions 31–315',group5:'Group 5 · Questions 51–515'};
 const sortNum=(a,b)=>a.localeCompare(b,undefined,{numeric:true});
-function emptyHistory(){return {three:[],threehalf:[],R:[],early:[],later:[]};}
+function emptyHistory(){return {three:[],threehalf:[],R:[],early:[],group3:[],group5:[]};}
 function setStatus(message,kind=''){el('status').textContent=message;el('status').className='status '+kind;}
 function readableImportDate(value){if(!value)return 'date not recorded';const d=new Date(value);return Number.isNaN(d.getTime())?'date not recorded':new Intl.DateTimeFormat('en-US',{year:'numeric',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(d);}
-function defaultFinalTag(q){return q.points===3&&!q.code.startsWith('R')?'early':'later';}
-function tagOf(q){return FINAL_TAGS[q.code]||defaultFinalTag(q);}
+// Final groups are fixed by the question ID, never by points or saved tags.
+// Q31–Q39/Q310–Q315 are distinct from Q51–Q59/Q510–Q515.
+function defaultFinalTag(q){
+  const id=String(q.code).trim();
+  if(/^(?:[1-9]|1[0-5])$/.test(id))return 'early';
+  if(/^3(?:[1-9]|1[0-5])$/.test(id))return 'group3';
+  if(/^5(?:[1-9]|1[0-5])$/.test(id))return 'group5';
+  return null;
+}
+function tagOf(q){return defaultFinalTag(q);}
 function bankUI(){
-  const groups=activeExam==='midterm'?['three','threehalf','R']:['early','later'];
+  const groups=activeExam==='midterm'?['three','threehalf','R']:['early','group3','group5'];
   const count=groups.map(g=>BANK.filter(q=>activeExam==='midterm'?q.group===g:tagOf(q)===g).length);
-  const breakdown=activeExam==='midterm'?`3-point: ${count[0]} · 3.5-point: ${count[1]} · R: ${count[2]}`:`Earlier: ${count[0]} · Later: ${count[1]}`;
+  const breakdown=activeExam==='midterm'?`3-point: ${count[0]} · 3.5-point: ${count[1]} · R: ${count[2]}`:`Group 1: ${count[0]} · Group 3: ${count[1]} · Group 5: ${count[2]}`;
   const matched=BANK.filter(q=>ANSWERS[q.code]).length;
   el('bankSummary').textContent=`${activeExam==='midterm'?'Midterm':'Final'} question bank: ${BANK.length} questions (${breakdown}) · ${Object.keys(ANSWERS).length} answer keys (${matched} matched) · Questions updated: ${readableImportDate(IMPORT_DATES.questions)} · Answers updated: ${readableImportDate(IMPORT_DATES.answers)}`;
   el('bankList').replaceChildren();
@@ -58,11 +66,16 @@ function bankUI(){
 }
 function renderFinalTags(){
   const list=el('finalTagList');list.replaceChildren();
-  const sorted=[...BANK].sort((a,b)=>sortNum(a.code,b.code));
-  for(const q of sorted){const tag=tagOf(q);const btn=document.createElement('button');btn.type='button';btn.className=tag==='early'?'earlier':'later';btn.textContent=`${q.code} (${q.points} pts) · ${tag==='early'?'Earlier':'Later'}`;btn.title='Click to change question group';btn.addEventListener('click',()=>{FINAL_TAGS[q.code]=tag==='early'?'later':'early';drawHistory=emptyHistory();clearCards();bankUI();persist().catch(e=>console.warn('Save failed:',e));});list.append(btn);}
-  const earlier=sorted.filter(q=>tagOf(q)==='early').length;
-  const later=sorted.length-earlier;
-  el('finalTagCount').textContent=!BANK.length?'Upload your Final Exam Questions PDF to set up the question groups.':`${earlier} Earlier / ${later} Later — ${earlier>=1&&later>=2?'Ready to draw 1 Earlier + 2 Later.':'Need at least 1 Earlier and 2 Later questions to draw.'}`;
+  const groups=['early','group3','group5'];
+  const counts=groups.map(group=>BANK.filter(q=>tagOf(q)===group).length);
+  for(const group of groups){
+    const p=document.createElement('p');
+    const ids=BANK.filter(q=>tagOf(q)===group).map(q=>q.code).sort(sortNum);
+    p.textContent=groupNames[group]+': '+(ids.join(', ')||'None');
+    list.append(p);
+  }
+  const ready=counts.every(n=>n>0);
+  el('finalTagCount').textContent=!BANK.length?'Upload the Final Exam Questions PDF.':`${counts[0]} in Group 1 · ${counts[1]} in Group 3 · ${counts[2]} in Group 5 — ${ready?'Ready to draw one from each group.':'Each group needs at least one question.'}`;
 }
 function unbiasedIndex(length){if(length<1)throw Error('Empty pool');if(crypto?.getRandomValues){const max=Math.floor(4294967296/length)*length;let n;do{const a=new Uint32Array(1);crypto.getRandomValues(a);n=a[0];}while(n>=max);return n%length;}return Math.floor(Math.random()*length);}
 function pick(group,exclude=[]){
@@ -80,9 +93,9 @@ function draw(){
   try {
     if(activeExam==='midterm')selected=['three','threehalf','R'].map(g=>pick(g));
     else {
-      const earlier=BANK.filter(q=>tagOf(q)==='early');const later=BANK.filter(q=>tagOf(q)==='later');
-      if(earlier.length<1||later.length<2)throw Error('Final Exam requires at least 1 Earlier and 2 Later questions. Use the Final exam question groups section below.');
-      const q1=pick('early');const q2=pick('later');const q3=pick('later',[q2.code]);selected=[q1,q2,q3];
+      const groups=['early','group3','group5'];
+      if(groups.some(g=>!BANK.some(q=>tagOf(q)===g)))throw Error('Final Exam requires questions in all three groups: 1–15, 31–315, and 51–515.');
+      selected=groups.map(g=>pick(g));
     }
   }catch(e){drawHistory=oldHistory;setStatus(e.message,'err');return;}
   const cards=el('cards');cards.replaceChildren();selected.forEach((q,i)=>{
@@ -121,14 +134,14 @@ async function activateExam(exam){
   if(isImporting)return;
   if(exam!==activeExam){EXAM_CACHE[activeExam]=snapshot();activeExam=exam;}
   el('examSelect').value=exam;el('examBrand').textContent=exam==='midterm'?'MPH 503 · MID-TERM ORAL EXAMINATION':'MPH 503 · FINAL ORAL EXAMINATION';
-  el('examHelp').textContent=exam==='midterm'?'1 × 3-point Statistics · 1 × 3.5-point Statistics · 1 × R':'1 Earlier Concepts question · 2 Later Concepts questions (R allowed)';
+  el('examHelp').textContent=exam==='midterm'?'1 × 3-point Statistics · 1 × 3.5-point Statistics · 1 × R':'Question 1: 1–15 · Question 2: 31–315 · Question 3: 51–515';
   el('examSelect').disabled=true;el('draw').disabled=true;
   let state=EXAM_CACHE[exam];
   if(!state){try{state=await readSaved(exam);}catch(e){console.warn('Cannot read saved exam bank:',e);} }
   if(!state){state=exam==='midterm'?{BANK:STARTER_BANK,ANSWERS:STARTER_ANSWERS,IMPORT_DATES:{questions:null,answers:null},FINAL_TAGS:{},drawHistory:emptyHistory()}:emptyFinalState();}
   applyState(state);EXAM_CACHE[exam]=snapshot();
-  if(exam==='final'&&!BANK.length)setStatus('Final Exam is empty. Upload the Final Questions PDF and Answer Keys PDF, then assign Earlier / Later question groups.');
-  else setStatus(exam==='midterm'?'Midterm bank ready: '+BANK.length+' questions.':'Final bank ready: '+BANK.length+' questions. Review Earlier / Later groups before drawing.');
+  if(exam==='final'&&!BANK.length)setStatus('Final Exam is empty. Upload the Final Questions PDF and Answer Keys PDF; groups are assigned by question number.');
+  else setStatus(exam==='midterm'?'Midterm bank ready: '+BANK.length+' questions.':'Final bank ready: '+BANK.length+' questions. Draws use Group 1, Group 3, and Group 5 in order.');
   el('examSelect').disabled=false;el('draw').disabled=false;
 }
 async function upload(ev,mode){
@@ -142,18 +155,14 @@ async function upload(ev,mode){
     if(mode==='questions'){
       const old=new Set(BANK.map(q=>q.code));BANK=imported.rows.map(({code,group,points,image})=>({code,group,points,image}));
       newCodes=BANK.filter(q=>!old.has(q.code)).map(q=>q.code).sort(sortNum);
-      if(activeExam==='final'){
-        const keep=new Set(BANK.map(q=>q.code));
-        FINAL_TAGS=Object.fromEntries(Object.entries(FINAL_TAGS).filter(([code])=>keep.has(code)));
-        for(const q of BANK)if(!FINAL_TAGS[q.code])FINAL_TAGS[q.code]=defaultFinalTag(q);
-      }
+       // Final groups are always derived from question IDs; no manual tags are needed.
       resetScreen();
     }else ANSWERS=Object.fromEntries(imported.rows.map(({code,image})=>[code,image]));
     IMPORT_DATES={...IMPORT_DATES,[mode]:new Date().toISOString()};bankUI();
     let saved=true;try{await persist();}catch(e){saved=false;console.warn('Saving failed:',e);}
     const n=mode==='questions'?BANK.length:Object.keys(ANSWERS).length;
     const missing=BANK.filter(q=>!ANSWERS[q.code]).map(q=>q.code);
-    setStatus((mode==='questions'?'QUESTIONS UPDATED: ':'ANSWER KEYS UPDATED: ')+n+(newCodes.length?' · New: '+newCodes.join(', '):'')+(missing.length?' · Missing answers: '+missing.join(', '):'')+(activeExam==='final'&&mode==='questions'?' · Review Earlier / Later groups below.':'')+(saved?'':' · Warning: could not save in browser.'),'ok');
+    setStatus((mode==='questions'?'QUESTIONS UPDATED: ':'ANSWER KEYS UPDATED: ')+n+(newCodes.length?' · New: '+newCodes.join(', '):'')+(missing.length?' · Missing answers: '+missing.join(', '):'')+(activeExam==='final'&&mode==='questions'?' · Groups checked by number: 1–15 / 31–315 / 51–515.':'')+(saved?'':' · Warning: could not save in browser.'),'ok');
     if(mode==='questions')el('bankBox').open=true;
   }catch(e){applyState(before);setStatus('PDF update failed: '+e.message,'err');console.error(e);}
   finally{isImporting=false;for(const id of ['examSelect','draw','reset','uploadQuestions','uploadAnswers'])el(id).disabled=false;ev.target.value='';}
